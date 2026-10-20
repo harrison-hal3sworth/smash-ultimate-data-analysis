@@ -2,6 +2,6 @@ python-dotenv
 pyyaml
 pandas
 numpy
-jupiter
+jupyter
 scipy
 requests
