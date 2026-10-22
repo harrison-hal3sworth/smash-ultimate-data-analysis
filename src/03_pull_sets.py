@@ -1,3 +1,5 @@
+# Claude generated code for fetching data from start.gg
+
 """
 03_pull_sets.py
 
