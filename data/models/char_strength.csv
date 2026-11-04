@@ -1,0 +1,87 @@
+char,strength_logit,win_pct_vs_average,rank
+Steve,0.1796,54.5,1
+Min Min,0.1759,54.4,2
+Kazuya,0.1655,54.1,3
+Snake,0.1072,52.7,4
+Luigi,0.102,52.5,5
+Pac-Man,0.0877,52.2,6
+Ken,0.0865,52.2,7
+Olimar,0.0842,52.1,8
+Wii Fit Trainer,0.0833,52.1,9
+Terry,0.081,52.0,10
+Bowser Jr.,0.0797,52.0,11
+Greninja,0.0785,52.0,12
+R.O.B.,0.0736,51.8,13
+Daisy,0.0734,51.8,14
+Duck Hunt,0.0638,51.6,15
+Zelda,0.0633,51.6,16
+Palutena,0.0632,51.6,17
+Ice Climbers,0.0626,51.6,18
+Shulk,0.0595,51.5,19
+Zero Suit Samus,0.0538,51.3,20
+Yoshi,0.0488,51.2,21
+Ryu,0.0464,51.2,22
+Lucas,0.0458,51.1,23
+Banjo-Kazooie,0.0454,51.1,24
+King Dedede,0.0451,51.1,25
+Diddy Kong,0.0371,50.9,26
+Mii Gunner,0.0346,50.9,27
+Wario,0.0326,50.8,28
+Pokemon Trainer,0.0326,50.8,29
+Bayonetta,0.0325,50.8,30
+Falco,0.0313,50.8,31
+Inkling,0.0299,50.7,32
+Robin,0.028,50.7,33
+Richter,0.0267,50.7,34
+Hero,0.0258,50.6,35
+Isabelle,0.0235,50.6,36
+Little Mac,0.0214,50.5,37
+Mr. Game & Watch,0.0186,50.5,38
+Dark Samus,0.015,50.4,39
+Peach,0.0117,50.3,40
+Mario,0.0097,50.2,41
+Pikachu,0.0043,50.1,42
+Toon Link,0.001,50.0,43
+Wolf,-0.0021,49.9,44
+Mewtwo,-0.0023,49.9,45
+Ness,-0.0034,49.9,46
+Sora,-0.0078,49.8,47
+Sephiroth,-0.0083,49.8,48
+Fox,-0.0108,49.7,49
+Incineroar,-0.0124,49.7,50
+Ike,-0.0136,49.7,51
+Mega Man,-0.0179,49.6,52
+Jigglypuff,-0.0205,49.5,53
+Mii Swordfighter,-0.0229,49.4,54
+Rosalina,-0.0241,49.4,55
+Donkey Kong,-0.0253,49.4,56
+Samus,-0.0258,49.4,57
+Bowser,-0.0276,49.3,58
+Ridley,-0.0336,49.2,59
+Chrom,-0.0342,49.1,60
+Sonic,-0.0362,49.1,61
+Roy,-0.0365,49.1,62
+Meta Knight,-0.0376,49.1,63
+Pit,-0.048,48.8,64
+Cloud,-0.0499,48.8,65
+Link,-0.0516,48.7,66
+Corrin,-0.0519,48.7,67
+Captain Falcon,-0.0527,48.7,68
+Young Link,-0.0555,48.6,69
+Simon Belmont,-0.0594,48.5,70
+Joker,-0.0619,48.5,71
+Pichu,-0.0631,48.4,72
+King K. Rool,-0.0659,48.4,73
+Byleth,-0.0695,48.3,74
+Villager,-0.0807,48.0,75
+Mii Brawler,-0.0812,48.0,76
+Pyra & Mythra,-0.086,47.9,77
+Sheik,-0.0915,47.7,78
+Lucario,-0.0995,47.5,79
+Dark Pit,-0.1022,47.4,80
+Piranha Plant,-0.1052,47.4,81
+Lucina,-0.1097,47.3,82
+Dr. Mario,-0.1192,47.0,83
+Ganondorf,-0.1573,46.1,84
+Kirby,-0.1776,45.6,85
+Marth,-0.2297,44.3,86
