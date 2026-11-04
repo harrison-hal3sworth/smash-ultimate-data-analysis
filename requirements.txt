@@ -6,3 +6,4 @@ jupyter
 scipy
 requests
 matplotlib
+pytest

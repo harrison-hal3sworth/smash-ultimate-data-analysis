@@ -4,19 +4,19 @@ Ratings: 273,067 players rated from 2,783,992 sets
   both players 10+ prior sets: accuracy 0.796  log loss 0.4344  (144,391 sets)
   (a coin flip scores accuracy 0.500, log loss 0.6931)
 
-Players: 290,185 total, 9,194 ranked (10+ sets in the last 365 days)
-  top 10: Light, らき, MarK, SableyeSupreme, カルメロ, Mukuro~, ドラ右, SOLO, しん/Sin, あcola
+Players: 290,185 total, 6,138 ranked (10+ sets in the last 365 days, RD <= 100)
+  top 10: ドラ右, あcola, Sonix, Hurt, Syrup, Sparg0, Miya, Wrath, MkLeo, Light
 
 Character usage: 51,829 players with character data (18% of all players)
 
-Matchup model: 1,367,445 non-mirror games, 86 characters, 3,655 matchups
-  validation: train 1,057,493 games before 2026-01-01, test 309,952 after
-  ratings only:            log loss 0.5724  accuracy 0.695
-  ratings + characters (penalty 10/30): log loss 0.5709  accuracy 0.697
-  ratings + characters (penalty 10/100): log loss 0.5708  accuracy 0.697
-  ratings + characters (penalty 30/300): log loss 0.5710  accuracy 0.697
-  ratings + characters (penalty 100/1000): log loss 0.5713  accuracy 0.696
+Matchup model: 1,367,297 non-mirror games, 86 characters, 3,655 matchups
+  validation: train 1,057,375 games before 2026-01-01, test 309,922 after
+  ratings only:            log loss 0.5701  accuracy 0.694
+  ratings + characters (penalty 10/30): log loss 0.5686  accuracy 0.697
+  ratings + characters (penalty 10/100): log loss 0.5685  accuracy 0.697
+  ratings + characters (penalty 30/300): log loss 0.5687  accuracy 0.697
+  ratings + characters (penalty 100/1000): log loss 0.5690  accuracy 0.696
   chosen penalty 10/100; characters improve log loss by 0.0016 over ratings alone
 
-Skill-adjusted character strength, top 5: Steve, Min Min, Kazuya, Snake, Luigi
+Skill-adjusted character strength, top 5: Steve, Min Min, Kazuya, Luigi, Snake
   bottom 5: Lucina, Dr. Mario, Ganondorf, Kirby, Marth

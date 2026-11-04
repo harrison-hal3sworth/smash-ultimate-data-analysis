@@ -1,4 +1,4 @@
-# Claude generated script that runs process to monitor and upkeep data pulling
+# Contains Claude generated code
 
 """
 run_pull.py  —  supervisor for step 03

@@ -1,4 +1,4 @@
-# Claude generated code for converting raw event files into usable tables
+# Contains Claude generated code
 
 """
 04_build_dataset.py

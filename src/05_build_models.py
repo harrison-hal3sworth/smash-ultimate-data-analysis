@@ -1,5 +1,3 @@
-# Contains Claude generated code
-
 """
 05_build_models.py  —  player table, Glicko-2 ratings, character usage, matchup model.
 
@@ -31,7 +29,7 @@ from scipy.optimize import minimize
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import clean  # noqa: E402
 
-ROOT = clean.find_root(Path(__file__).parent)
+ROOT = Path(__file__).resolve().parents[1]      # project root (src/..)
 OUT = ROOT / "data" / "models"
 
 # Glicko-2 settings
@@ -40,6 +38,7 @@ R0, RD0, VOL0 = 1500.0, 350.0, 0.06
 TAU = 0.5                 # how fast volatility can change
 ACTIVE_DAYS = 365         # "current" = played within the last 12 months
 MIN_SETS_RANKED = 10      # sets in that window needed to get a rank
+MAX_RD_RANKED = 100       # ...and the rating must be settled (RD at most this) to get a rank
 
 TEST_FROM = "2026-01-01"  # model validation: train before, test on/after
 
@@ -83,24 +82,24 @@ def build_players(sets_all: pd.DataFrame) -> pd.DataFrame:
 
 # ── 2. Glicko-2 ratings ────────────────────────────────────────────────
 
-def _volatility(sigma, phi, v, delta):
+def _volatility(sigma, phi, v, delta, tau=TAU):
     """Glicko-2 step 5 (Illinois algorithm), vectorized over players."""
     a = np.log(sigma ** 2)
     phi2 = phi ** 2
 
     def f(x):
         ex = np.exp(x)
-        return ex * (delta ** 2 - phi2 - v - ex) / (2 * (phi2 + v + ex) ** 2) - (x - a) / TAU ** 2
+        return ex * (delta ** 2 - phi2 - v - ex) / (2 * (phi2 + v + ex) ** 2) - (x - a) / tau ** 2
 
     A = a.copy()
     big = delta ** 2 > phi2 + v
-    B = np.where(big, np.log(np.maximum(delta ** 2 - phi2 - v, 1e-300)), a - TAU)
-    need = ~big & (f(a - TAU) < 0)
+    B = np.where(big, np.log(np.maximum(delta ** 2 - phi2 - v, 1e-300)), a - tau)
+    need = ~big & (f(a - tau) < 0)
     k = 1
     while need.any() and k < 100:
         k += 1
-        B = np.where(need, a - k * TAU, B)
-        need = need & (f(a - k * TAU) < 0)
+        B = np.where(need, a - k * tau, B)
+        need = need & (f(a - k * tau) < 0)
 
     fA, fB = f(A), f(B)
     for _ in range(100):
@@ -117,7 +116,25 @@ def _volatility(sigma, phi, v, delta):
     return np.exp(A / 2)
 
 
-def glicko2(sets: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+def rate_period(mu, phi, sigma, a, b, sa, tau=TAU):
+    """One Glicko-2 rating period (steps 3-8 of Glickman's paper), vectorized.
+    mu/phi/sigma: arrays over all players (internal scale), RDs already inflated for
+    idleness. a, b: player indices of each set; sa: 1 if a won. Returns the indices
+    of players who played and their new (mu, phi, sigma)."""
+    n = len(mu)
+    u = np.unique(np.concatenate([a, b]))
+    P = np.concatenate([a, b]); Q = np.concatenate([b, a]); S = np.concatenate([sa, 1 - sa])
+    g = 1 / np.sqrt(1 + 3 * phi[Q] ** 2 / np.pi ** 2)
+    E = 1 / (1 + np.exp(-g * (mu[P] - mu[Q])))
+    v = 1 / np.bincount(P, g ** 2 * E * (1 - E), minlength=n)[u]
+    dsum = np.bincount(P, g * (S - E), minlength=n)[u]
+    sig_new = _volatility(sigma[u], phi[u], v, v * dsum, tau)
+    phi_star = np.sqrt(phi[u] ** 2 + sig_new ** 2)
+    phi_new = 1 / np.sqrt(1 / phi_star ** 2 + 1 / v)
+    return u, mu[u] + phi_new ** 2 * dsum, phi_new, sig_new
+
+
+def glicko2(sets: pd.DataFrame, tau: float = TAU) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Weekly Glicko-2 over completed sets in date order.
     Returns (sets with pre-week ratings attached, current ratings per player)."""
     s = sets[["set_id", "event_id", "date", "p1_id", "p2_id", "winner_id"]].dropna().copy()
@@ -154,22 +171,9 @@ def glicko2(sets: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
 
         pre[lo:hi] = np.column_stack([mu[a], phi[a], sets_seen[a], mu[b], phi[b], sets_seen[b]])
 
-        P = np.concatenate([a, b]); Q = np.concatenate([b, a]); S = np.concatenate([sa, 1 - sa])
-        g = 1 / np.sqrt(1 + 3 * phi[Q] ** 2 / np.pi ** 2)
-        E = 1 / (1 + np.exp(-g * (mu[P] - mu[Q])))
-        v_inv = np.bincount(P, g ** 2 * E * (1 - E), minlength=n_players)[u]
-        dsum = np.bincount(P, g * (S - E), minlength=n_players)[u]
-        v = 1 / v_inv
-        delta = v * dsum
-
-        sig_new = _volatility(sigma[u], phi[u], v, delta)
-        phi_star = np.sqrt(phi[u] ** 2 + sig_new ** 2)
-        phi_new = 1 / np.sqrt(1 / phi_star ** 2 + 1 / v)
-        mu[u] = mu[u] + phi_new ** 2 * dsum
-        phi[u] = phi_new
-        sigma[u] = sig_new
+        _, mu[u], phi[u], sigma[u] = rate_period(mu, phi, sigma, a, b, sa, tau)
         last[u] = w
-        sets_seen[u] += np.bincount(P, minlength=n_players)[u]
+        sets_seen[u] += np.bincount(np.concatenate([a, b]), minlength=n_players)[u]
 
     # sets with pre-week ratings, on the familiar 1500 / 350 scale
     s["p1_r"] = R0 + SCALE * pre[:, 0]; s["p1_rd"] = SCALE * pre[:, 1]; s["p1_prior_sets"] = pre[:, 2].astype(int)
@@ -188,6 +192,13 @@ def glicko2(sets: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         "sets_rated": sets_seen,
     }).set_index("player_id")
     return s.drop(columns="week"), cur
+
+
+def rating_gap(r1, rd1, r2, rd2):
+    """Rating difference in Glicko-2 units, discounted by both players' uncertainty
+    (Glicko's g-factor): a gap between two unsettled ratings counts for less."""
+    g = 1 / np.sqrt(1 + 3 * ((rd1 ** 2 + rd2 ** 2) / SCALE ** 2) / np.pi ** 2)
+    return g * (r1 - r2) / SCALE
 
 
 def expected(r1, rd1, r2, rd2):
@@ -256,15 +267,16 @@ def fit_logistic(X, y, nc, lam_s, lam_i):
 
 def prep_games(games: pd.DataFrame, rated: pd.DataFrame, seed: int = 0) -> pd.DataFrame:
     g = games[~games.is_mirror].merge(
-        rated[["set_id", "p1_id", "p1_r", "p2_r"]].rename(columns={"p1_id": "rated_p1"}), on="set_id")
+        rated[["set_id", "p1_id", "p1_r", "p1_rd", "p2_r", "p2_rd"]].rename(columns={"p1_id": "rated_p1"}), on="set_id")
     g = g[g.rated_p1 == g.p1_id]                       # orientation check
     # randomly swap sides so "player 1" (often the higher seed) carries no built-in advantage
     flip = np.random.default_rng(seed).random(len(g)) < 0.5
     out = pd.DataFrame({
+        "event_id": g.event_id.to_numpy(),
         "date": g.date.to_numpy(),
         "c1": np.where(flip, g.p2_char, g.p1_char),
         "c2": np.where(flip, g.p1_char, g.p2_char),
-        "rdiff": np.where(flip, g.p2_r - g.p1_r, g.p1_r - g.p2_r) / SCALE,
+        "rdiff": np.where(flip, -1, 1) * rating_gap(g.p1_r, g.p1_rd, g.p2_r, g.p2_rd).to_numpy(),
         "y": np.where(flip, g.winner_id == g.p2_id, g.winner_id == g.p1_id).astype(float),
     })
     return out
@@ -300,7 +312,8 @@ def fit_matchups(games: pd.DataFrame, rated: pd.DataFrame, report: list) -> dict
     beta, s_eff, i_eff = w[0], w[1:1 + nc], w[1 + nc:]
     n_games = pd.Series(list(zip(np.minimum(d.c1, d.c2), np.maximum(d.c1, d.c2)))).value_counts()
     return {
-        "beta_per_rating_point": float(beta / SCALE),
+        "beta": float(beta),                 # multiplies rating_gap() (Glicko-2 units, RD-discounted)
+        "scale": SCALE,
         "penalty": {"strength": lam_s, "interaction": lam_i},
         "validation": {"ratings_only": sc0, "ratings_plus_characters": sc, "test_from": TEST_FROM},
         "characters": chars,
@@ -351,13 +364,13 @@ def main():
     # current rank: players active in the last 12 months with enough sets, ordered by rating
     # (the same rating the win probabilities use, so "higher rank" and "favoured" always agree)
     players = players.join(cur, how="left")
-    eligible = players.sets_last_12m >= MIN_SETS_RANKED
+    eligible = (players.sets_last_12m >= MIN_SETS_RANKED) & (players.rd <= MAX_RD_RANKED)
     players["rank"] = players.loc[eligible, "rating"].rank(ascending=False, method="first").astype("Int64")
     players = players.sort_values("rank")
     players.to_csv(OUT / "players.csv", index_label="player_id")
     players[["tag", "rating", "rd", "rank", "sets_last_12m"]].to_csv(OUT / "ratings_current.csv", index_label="player_id")
     report += [f"Players: {len(players):,} total, {int(eligible.sum()):,} ranked "
-               f"({MIN_SETS_RANKED}+ sets in the last {ACTIVE_DAYS} days)",
+               f"({MIN_SETS_RANKED}+ sets in the last {ACTIVE_DAYS} days, RD <= {MAX_RD_RANKED})",
                "  top 10: " + ", ".join(players.dropna(subset=["rank"]).head(10).tag.astype(str)), ""]
 
     log("character usage ...")

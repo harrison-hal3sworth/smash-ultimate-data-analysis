@@ -1,4 +1,4 @@
-# Claude generated script for pulling tournament metadata for given timeframe
+# Contains Claude generated code
 
 """
 01_pull_tournaments.py

@@ -1,4 +1,4 @@
-# Claude generated code for reading monthly .json files and filtering events
+# Contains Claude generated code
 
 """
 02_filter_events.py

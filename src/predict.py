@@ -24,7 +24,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import clean  # noqa: E402
 
-R0 = 1500.0
+R0, RD0 = 1500.0, 350.0
 
 
 def _sigmoid(z: float) -> float:
@@ -55,7 +55,7 @@ class SmashModel:
         self.usage_tbl = pd.read_csv(d / "usage.csv")
         self.model = json.loads((d / "matchup_model.json").read_text(encoding="utf-8"))
         self.characters = self.model["characters"]
-        self.beta = self.model["beta_per_rating_point"]
+        self.beta, self.scale = self.model["beta"], self.model["scale"]
         self._tag_lower = self.players.tag.str.lower()
         self._other_lower = self.players.other_tags.str.lower()
 
@@ -98,9 +98,17 @@ class SmashModel:
         return None if u.empty else u.char.iat[0]
 
     # ── model pieces ──
-    def rating(self, pid: int) -> float:
-        r = self.players.at[pid, "rating"] if pid in self.players.index else np.nan
-        return R0 if pd.isna(r) else float(r)
+    def rating(self, pid: int) -> tuple[float, float]:
+        """(rating, RD); unknown or unrated players get the starting 1500 / 350."""
+        if pid in self.players.index and pd.notna(self.players.at[pid, "rating"]):
+            return float(self.players.at[pid, "rating"]), float(self.players.at[pid, "rd"])
+        return R0, RD0
+
+    def rating_gap(self, a: int, b: int) -> float:
+        """Same RD-discounted gap the model was trained on."""
+        (ra, da), (rb, db) = self.rating(a), self.rating(b)
+        g = 1 / math.sqrt(1 + 3 * ((da ** 2 + db ** 2) / self.scale ** 2) / math.pi ** 2)
+        return g * (ra - rb) / self.scale
 
     def matchup_logit(self, a: str, b: str) -> float:
         s, inter = self.model["strength"], self.model["interaction"]
@@ -129,7 +137,7 @@ class SmashModel:
 
         z, notes = 0.0, []
         if players:
-            z += self.beta * (self.rating(a) - self.rating(b))
+            z += self.beta * self.rating_gap(a, b)
         if chars:
             if char_a == char_b:
                 notes.append("Mirror match: the characters cancel out.")
@@ -146,13 +154,14 @@ class SmashModel:
             "p_game": p_game, "p_set": set_prob(p_game, best_of), "best_of": best_of,
             "game_split": split(p_game), "set_split": split(set_prob(p_game, best_of)),
             "notes": notes,
+            "char_a": char_a if chars else None, "char_b": char_b if chars else None,
         }
         if players and not chars:
             ra, rb = self.players.at[a, "rank"], self.players.at[b, "rank"]
             if pd.notna(ra) and pd.notna(rb):
                 fav = a if ra < rb else b
             else:
-                fav = a if self.rating(a) >= self.rating(b) else b
+                fav = a if self.rating(a)[0] >= self.rating(b)[0] else b
             out["favoured"] = fav
             out["headline"] = f"{self.players.at[fav, 'tag']} is the higher-ranked player and is favoured."
         return out

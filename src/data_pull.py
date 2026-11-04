@@ -1,4 +1,4 @@
-# Claude generated client for pulling Smash data
+# Contains Claude generated code
 
 """
 Minimal start.gg GraphQL client for the Smash Ultimate project.

@@ -1,0 +1,4 @@
+comparison,spearman,top10_overlap
+random half A vs half B (by event),0.8891079767913581,6 / 10
+before 2025 vs 2025 onward,0.7097787631492051,5 / 10
+penalty 10/100 vs 100/1000,0.998207462616161,10 / 10

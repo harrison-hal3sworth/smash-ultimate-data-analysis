@@ -81,6 +81,10 @@ def clean_games(games: pd.DataFrame, sets_complete: pd.DataFrame, log: list) -> 
     df = step(games, "raw rows (games with both characters)")
     df = step(df[df.set_id.isin(sets_complete.set_id)], "keep games from completed sets")
     df = step(df.drop_duplicates(["set_id", "game_num"]), "drop duplicate (set_id, game_num)")
+    # reporting errors: a real set is best-of-9 at most, numbered from 1 (the full data has
+    # e.g. one 94-"game" set and one numbered 0, 2, 3) -> drop the whole set
+    bad_sets = df.loc[~df.game_num.between(1, 9), "set_id"].unique()
+    df = step(df[~df.set_id.isin(bad_sets)], "drop sets with game numbers outside 1-9 (reporting errors)")
     df = step(df[~df.p1_char.isin(EXCLUDE_CHARS) & ~df.p2_char.isin(EXCLUDE_CHARS)],
               f"drop {', '.join(sorted(EXCLUDE_CHARS))}")
     df = step(df[(df.winner_id == df.p1_id) | (df.winner_id == df.p2_id)],
@@ -143,7 +147,7 @@ def wilson(wins, n, z: float = Z):
         denom = 1 + z**2 / n
         centre = (p + z**2 / (2 * n)) / denom
         half = z * np.sqrt(p * (1 - p) / n + z**2 / (4 * n**2)) / denom
-    return centre - half, centre + half
+    return np.clip(centre - half, 0, 1), np.clip(centre + half, 0, 1)   # clip float rounding at 0 / n wins
 
 
 def coverage(sets_all: pd.DataFrame, by: str) -> pd.DataFrame:
