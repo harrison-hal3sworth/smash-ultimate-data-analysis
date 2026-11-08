@@ -1,0 +1,4 @@
+comparison,Spearman difference,top-8 difference,set-accuracy difference
+ratings + characters vs organizer,"-0.083 [-0.141, -0.033]; better in 6, worse in 43","-0.102 [-0.367, +0.163]; better in 9, worse in 11","-0.022 [-0.042, -0.003]; better in 18, worse in 30"
+ratings only vs organizer,"-0.082 [-0.139, -0.033]; better in 8, worse in 41","-0.143 [-0.429, +0.143]; better in 8, worse in 11","-0.021 [-0.042, -0.003]; better in 18, worse in 30"
+ratings + characters vs ratings only,"-0.001 [-0.001, +0.000]; better in 20, worse in 27","+0.041 [-0.041, +0.143]; better in 4, worse in 2","-0.001 [-0.002, +0.001]; better in 16, worse in 19"

@@ -167,6 +167,35 @@ class SmashModel:
         return out
 
 
+    # ── deliverable 6: auto-seeding ──
+    def seed(self, player_ids: list, names: list | None = None, use_chars: bool = True,
+             best_of: int = 3) -> pd.DataFrame:
+        """Seed a field by each player's average chance of beating everyone else.
+        player_ids may contain None for players not in the data (rated 1500 / 350, no character)."""
+        import seeder
+        names = names or [None] * len(player_ids)
+        ratings = [self.rating(p) if p is not None else (R0, RD0) for p in player_ids]
+        chars = [self.main_char(p) if (p is not None and use_chars) else None for p in player_ids]
+        P = seeder.pairwise_set_probs(self.model, [r for r, _ in ratings], [d for _, d in ratings],
+                                      chars if use_chars else None, best_of)
+        share = seeder.expected_win_share(P)
+        rows = []
+        for i, pid in enumerate(player_ids):
+            known = pid is not None
+            rows.append({
+                "player": self.players.at[pid, "tag"] if known else (names[i] or "unknown"),
+                "player_id": pid,
+                "state": self.players.at[pid, "state"] if known else None,
+                "rank": self.players.at[pid, "rank"] if known else None,
+                "rating": round(ratings[i][0]),
+                "main": chars[i],
+                "avg_win_chance": share[i],
+            })
+        out = pd.DataFrame(rows).iloc[seeder.seed_order(P)].reset_index(drop=True)
+        out.insert(0, "seed", range(1, len(out) + 1))
+        return out
+
+
 if __name__ == "__main__":
     # quick smoke test from the command line: python src/predict.py "tagA" "tagB" [charA charB]
     m = SmashModel()

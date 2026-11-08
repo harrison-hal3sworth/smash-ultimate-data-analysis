@@ -1,7 +1,5 @@
 # Smash Ultimate Data Analysis
 
-*Claude generated README.md*
-
 Do Super Smash Bros. Ultimate tier lists and matchup charts hold up against real tournament results once you account for player skill?
 
 This project pulls tournament data from the [start.gg](https://start.gg) API, rates every player, models character matchups after controlling for skill, and wraps the results in an interactive dashboard.
@@ -42,6 +40,10 @@ The app opens in your browser at `http://localhost:8501`. The first load takes a
 | Two players only | Ratings only; the higher-ranked player is favoured |
 | Two players, one character | The other player's most-used character is assumed |
 
+### Auto-seeder tab
+
+Paste a tournament's entrants, one start.gg tag per line, to get a seeding. Each player is assumed to use their most-used character, and players are ordered by their average chance of beating everyone else in the field. Unknown tags are seeded as new players (rating 1500), and tags shared by several active players are flagged for you to check. The seeding downloads as a CSV.
+
 **Rank (`#3`)** is the player's position among those with 10+ sets in the last 12 months and a settled Glicko-2 rating (rating deviation ≤ 100). Other players show as "unranked" but still have a rating that the predictions use. **State** is where the player has competed most often.
 
 ---
@@ -70,7 +72,10 @@ src/
   05_build_models.py      player table, Glicko-2 ratings, usage, matchup model
   06_fetch_icons.py       character icon links from start.gg
   07_validate.py          validation and robustness report
-  predict.py              search, character split and win probability (used by the app)
+  predict.py              search, character split, win probability and seeding (used by the app)
+  seeder.py               auto-seeding + seeding evaluation metrics
+  08_pull_seeding.py      organizer seeds + final placements for test events
+  09_validate_seeding.py  auto-seeder vs organizer seeding report
   app.py                  Streamlit dashboard
 EDA/cleaning.ipynb        exploratory analysis (figures in outputs/figures/)
 tests/                    pytest suite
@@ -94,6 +99,8 @@ python src/04_build_dataset.py      # a few minutes
 python src/05_build_models.py       # ~5 minutes
 python src/06_fetch_icons.py        # one API call
 python src/07_validate.py           # a few minutes
+python src/08_pull_seeding.py       # seeds + placements for 50 test events, ~5 minutes
+python src/09_validate_seeding.py   # auto-seeder validation -> reports/seeding_validation.md
 ```
 
 Steps 01 and 03 can be stopped and restarted at any time, and they pick up where they left off. start.gg rate-limits each token, so run only one pull at a time.
@@ -103,11 +110,11 @@ Steps 01 and 03 can be stopped and restarted at any time, and they pick up where
 ## Tests
 
 ```bash
-pytest -m "not data"   # 45 unit tests on small made-up data; no data needed, a few seconds
+pytest -m "not data"   # 64 unit tests on small made-up data; no data needed, a few seconds
 pytest -m data         # 10 checks on the real pipeline outputs (needs data/processed and data/models)
 ```
 
-The unit tests cover the cleaning rules, the Glicko-2 implementation (checked against Glickman's published worked example), leakage, the matchup model and every dashboard case.
+The unit tests cover the cleaning rules, the Glicko-2 implementation (checked against Glickman's published worked example), leakage, the matchup model, the auto-seeder and every dashboard case.
 
 ---
 
