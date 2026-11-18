@@ -17,6 +17,8 @@ PROC, MODELS = ROOT / "data" / "processed", ROOT / "data" / "models"
 pytestmark = pytest.mark.data
 need_proc = pytest.mark.skipif(not (PROC / "sets.csv").exists(), reason="no data/processed")
 need_models = pytest.mark.skipif(not (MODELS / "players.csv").exists(), reason="no data/models")
+need_rated = pytest.mark.skipif(not (MODELS / "sets_rated.csv.gz").exists(),
+                                reason="no data/models/sets_rated.csv.gz (git-ignored; made by step 05)")
 
 
 @pytest.fixture(scope="module")
@@ -99,7 +101,7 @@ def test_model_file_covers_every_character_and_matchup():
     assert 0 < m["beta"] < 5
 
 
-@need_models
+@need_rated
 def test_every_players_first_set_uses_starting_ratings():
     """No leakage: before a player's first set they must be at 1500 / 350."""
     s = pd.read_csv(MODELS / "sets_rated.csv.gz", usecols=["date", "p1_id", "p1_r", "p1_rd",

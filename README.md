@@ -87,7 +87,7 @@ reports/                  validation reports, update history, figures and tables
 logs/                     update logs (not committed)
 ```
 
-`data/raw/`, `data/interim/` and `data/processed/` aren't in the repo, because they're large and can be regenerated with the steps below.
+`data/raw/` (the raw start.gg pulls, about 1.5 GB) and `data/interim/` are in the repo, so a fresh clone can update the data without re-pulling everything. `data/processed/` isn't (it's large and step 04 rebuilds it in a few minutes), and neither is `data/models/sets_rated.csv.gz` (step 05 recreates it). The dashboard doesn't need any of these.
 
 ---
 
