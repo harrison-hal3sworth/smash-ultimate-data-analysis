@@ -1,3 +1,5 @@
+# Contains Claude generated code
+
 """
 07_validate.py  —  validation and robustness report for the step-05 models.
 
@@ -200,15 +202,38 @@ def character_checks(games: pd.DataFrame, rated: pd.DataFrame, model: dict, out:
     acc1 = ((X_te @ w1 > 0) == (y == 1)).mean()
     flags.append(("Characters improve held-out predictions (bootstrap CI above 0)", lo > 0,
                   f"{mean_gain:.4f} [{lo:.4f}, {hi:.4f}]"))
+
+    # 4b. does the player-on-character term add to that? same bootstrap
+    pen = model["penalty"]
+    f2 = B.fit_player_char(tr, chars, pairs, lam_s, lam_i, pen["player_char"], pen["player"])
+    z2 = B.logit_pc(te, chars, pairs, f2, as_used=True)        # as the dashboard uses it
+    gain2 = ll(X_te @ w1) - ll(z2)                             # > 0 means the new term helped
+    pe2 = pd.DataFrame({"event": te.event_id.to_numpy(), "gain": gain2}).groupby("event").gain.agg(["sum", "size"])
+    s2, n2 = pe2["sum"].to_numpy(), pe2["size"].to_numpy()
+    boot2 = s2[idx].sum(1) / n2[idx].sum(1)
+    lo2, hi2 = np.percentile(boot2, [2.5, 97.5])
+    acc2 = ((z2 > 0) == (y == 1)).mean()
+    off = (np.minimum(te.ea, te.eb) < np.log(0.5)).to_numpy()
+    acc_off = [((z[off] > 0) == (y[off] == 1)).mean() for z in (X_te[:, :1] @ w0, X_te @ w1, z2)]
+    flags.append(("Player-on-character term improves held-out predictions (bootstrap CI above 0)", lo2 > 0,
+                  f"{gain2.mean():.4f} [{lo2:.4f}, {hi2:.4f}]"))
     out += ["## 4. Do characters add predictive value?", "",
             f"Fit on games before {TEST_FROM:%Y-%m-%d}, scored on {len(te):,} later games from "
             f"{len(per_event):,} events. Confidence interval from {N_BOOT} bootstrap resamples of whole events.", "",
             "| | log loss | accuracy |", "| --- | --- | --- |",
             f"| ratings only | {ll(X_te[:, :1] @ w0).mean():.4f} | {acc0:.3f} |",
-            f"| ratings + characters | {ll(X_te @ w1).mean():.4f} | {acc1:.3f} |", "",
+            f"| ratings + characters | {ll(X_te @ w1).mean():.4f} | {acc1:.3f} |",
+            f"| ratings + characters + player-on-character | {ll(z2).mean():.4f} | {acc2:.3f} |", "",
             f"Log-loss gain from characters: **{mean_gain:.4f}** (95% CI {lo:.4f} to {hi:.4f}). "
             + ("The gain is small but reliably above zero." if lo > 0 else
-               "The interval includes zero: characters do not reliably improve predictions."), ""]
+               "The interval includes zero: characters do not reliably improve predictions."),
+            "",
+            f"Further gain from the player-on-character term (how familiar each player is with the character "
+            "they picked, plus how much better or worse they do on it than on their other characters): "
+            f"**{gain2.mean():.4f}** (95% CI {lo2:.4f} to {hi2:.4f}).", "",
+            f"Games where a player is on a character that makes up under half of their earlier games "
+            f"({off.sum():,} games, {off.mean():.0%} of the test set), accuracy: ratings only {acc_off[0]:.3f}, "
+            f"+ characters {acc_off[1]:.3f}, + player-on-character {acc_off[2]:.3f}.", ""]
 
     # 5. stability of the character-strength ranking
     log("  character-strength stability (random halves, time split, penalty) ...")

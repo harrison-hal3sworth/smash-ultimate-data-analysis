@@ -4,3 +4,7 @@ __pycache__/
 .venv/
 data/processed/
 data/models/sets_rated.csv.gz
+logs/
+data/models_backup/
+data/raw/sets_stale/
+data/.update.lock

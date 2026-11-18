@@ -1,3 +1,5 @@
+# Contains Claude generated code
+
 """Dashboard logic in src/predict.py, against a tiny known model (conftest.make_model_dir)."""
 import math
 

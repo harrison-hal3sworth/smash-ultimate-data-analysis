@@ -1,3 +1,5 @@
+# Contains Claude generated code
+
 """
 clean.py  —  cleaning + summary functions for the Smash Ultimate analysis.
 

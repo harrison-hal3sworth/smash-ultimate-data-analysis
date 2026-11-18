@@ -1,3 +1,5 @@
+# Contains Claude generated Code
+
 """Cleaning rules in src/clean.py, on hand-made rows."""
 import numpy as np
 import pandas as pd

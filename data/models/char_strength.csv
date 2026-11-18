@@ -1,87 +1,87 @@
 char,strength_logit,win_pct_vs_average,rank
-Steve,0.1794,54.5,1
-Min Min,0.1791,54.5,2
-Kazuya,0.166,54.1,3
-Luigi,0.1052,52.6,4
-Snake,0.1052,52.6,5
-Pac-Man,0.0885,52.2,6
-Ken,0.0848,52.1,7
-Olimar,0.0832,52.1,8
-Wii Fit Trainer,0.0825,52.1,9
-Terry,0.0821,52.1,10
-Bowser Jr.,0.0797,52.0,11
-Greninja,0.0782,52.0,12
-Daisy,0.0726,51.8,13
-Duck Hunt,0.071,51.8,14
-R.O.B.,0.0685,51.7,15
-Ice Climbers,0.0643,51.6,16
-Shulk,0.0623,51.6,17
-Palutena,0.0593,51.5,18
-Zelda,0.0561,51.4,19
-Zero Suit Samus,0.0545,51.4,20
-Yoshi,0.0503,51.3,21
-King Dedede,0.0501,51.3,22
-Banjo-Kazooie,0.0492,51.2,23
-Lucas,0.0452,51.1,24
-Ryu,0.0429,51.1,25
-Diddy Kong,0.0359,50.9,26
-Pokemon Trainer,0.0329,50.8,27
-Mii Gunner,0.0323,50.8,28
-Inkling,0.0319,50.8,29
-Wario,0.0312,50.8,30
-Falco,0.0312,50.8,31
-Robin,0.0302,50.8,32
-Isabelle,0.0292,50.7,33
-Bayonetta,0.0267,50.7,34
-Little Mac,0.0243,50.6,35
-Hero,0.0224,50.6,36
-Richter,0.0214,50.5,37
-Dark Samus,0.0198,50.5,38
-Mr. Game & Watch,0.0134,50.3,39
-Pikachu,0.0093,50.2,40
-Mario,0.008,50.2,41
-Peach,0.0034,50.1,42
-Mewtwo,-0.0009,50.0,43
-Sephiroth,-0.003,49.9,44
-Toon Link,-0.0036,49.9,45
-Wolf,-0.0056,49.9,46
-Ness,-0.0057,49.9,47
-Sora,-0.0068,49.8,48
-Ike,-0.0104,49.7,49
-Incineroar,-0.0123,49.7,50
-Fox,-0.0142,49.6,51
-Jigglypuff,-0.0183,49.5,52
-Mii Swordfighter,-0.0203,49.5,53
-Rosalina,-0.0208,49.5,54
-Mega Man,-0.0214,49.5,55
-Donkey Kong,-0.0256,49.4,56
-Samus,-0.0258,49.4,57
-Bowser,-0.0264,49.3,58
-Chrom,-0.0319,49.2,59
-Meta Knight,-0.0352,49.1,60
-Sonic,-0.0373,49.1,61
-Roy,-0.038,49.1,62
-Ridley,-0.0411,49.0,63
-Link,-0.0495,48.8,64
-Pit,-0.05,48.7,65
-Captain Falcon,-0.0523,48.7,66
-Corrin,-0.0525,48.7,67
-Simon Belmont,-0.0526,48.7,68
-Cloud,-0.0535,48.7,69
-Young Link,-0.0575,48.6,70
-Pichu,-0.0592,48.5,71
-Joker,-0.0649,48.4,72
-King K. Rool,-0.069,48.3,73
-Byleth,-0.0696,48.3,74
-Villager,-0.0795,48.0,75
-Mii Brawler,-0.0823,47.9,76
-Pyra & Mythra,-0.0865,47.8,77
-Piranha Plant,-0.0898,47.8,78
-Sheik,-0.0939,47.7,79
-Lucario,-0.097,47.6,80
-Dark Pit,-0.1037,47.4,81
-Lucina,-0.111,47.2,82
-Dr. Mario,-0.1171,47.1,83
-Ganondorf,-0.1578,46.1,84
-Kirby,-0.1788,45.5,85
-Marth,-0.2312,44.2,86
+Steve,0.357,58.8,1
+Min Min,0.3531,58.7,2
+Snake,0.2721,56.8,3
+Kazuya,0.2706,56.7,4
+Olimar,0.2032,55.1,5
+R.O.B.,0.1983,54.9,6
+Ken,0.1972,54.9,7
+Luigi,0.1835,54.6,8
+Wii Fit Trainer,0.1777,54.4,9
+Bayonetta,0.1651,54.1,10
+Ryu,0.155,53.9,11
+Mii Gunner,0.1494,53.7,12
+Palutena,0.1388,53.5,13
+Pac-Man,0.1367,53.4,14
+Daisy,0.1362,53.4,15
+Robin,0.1162,52.9,16
+Terry,0.1146,52.9,17
+Greninja,0.1116,52.8,18
+Duck Hunt,0.1103,52.8,19
+Zero Suit Samus,0.1009,52.5,20
+Yoshi,0.0847,52.1,21
+Diddy Kong,0.0792,52.0,22
+Pokemon Trainer,0.0765,51.9,23
+Hero,0.0735,51.8,24
+Falco,0.0734,51.8,25
+Shulk,0.0702,51.8,26
+Wario,0.0678,51.7,27
+Bowser Jr.,0.0662,51.7,28
+Mii Swordfighter,0.0643,51.6,29
+King Dedede,0.058,51.4,30
+Zelda,0.0553,51.4,31
+Ice Climbers,0.0514,51.3,32
+Inkling,0.0409,51.0,33
+Donkey Kong,0.0327,50.8,34
+Banjo-Kazooie,0.031,50.8,35
+Dark Samus,0.0304,50.8,36
+Mega Man,0.0249,50.6,37
+Rosalina,0.0135,50.3,38
+Richter,0.0056,50.1,39
+Chrom,0.0043,50.1,40
+Wolf,0.0038,50.1,41
+Simon Belmont,0.0036,50.1,42
+Peach,-0.0004,50.0,43
+Mario,-0.007,49.8,44
+Ness,-0.013,49.7,45
+Mr. Game & Watch,-0.0171,49.6,46
+Ike,-0.0195,49.5,47
+Isabelle,-0.0233,49.4,48
+Lucas,-0.0298,49.3,49
+Sora,-0.0343,49.1,50
+Incineroar,-0.038,49.1,51
+Little Mac,-0.0451,48.9,52
+Bowser,-0.047,48.8,53
+Sephiroth,-0.0559,48.6,54
+Roy,-0.0583,48.5,55
+Samus,-0.0609,48.5,56
+Fox,-0.0626,48.4,57
+Toon Link,-0.0631,48.4,58
+Ridley,-0.0638,48.4,59
+Cloud,-0.0791,48.0,60
+Pichu,-0.0817,48.0,61
+Mewtwo,-0.0879,47.8,62
+Meta Knight,-0.0885,47.8,63
+Joker,-0.0933,47.7,64
+Pikachu,-0.1033,47.4,65
+Young Link,-0.1076,47.3,66
+Link,-0.1143,47.1,67
+Sonic,-0.1166,47.1,68
+Dark Pit,-0.1185,47.0,69
+Dr. Mario,-0.1231,46.9,70
+Pyra & Mythra,-0.1236,46.9,71
+Pit,-0.1308,46.7,72
+Captain Falcon,-0.1324,46.7,73
+Villager,-0.1372,46.6,74
+Byleth,-0.1427,46.4,75
+Sheik,-0.1441,46.4,76
+King K. Rool,-0.1534,46.2,77
+Piranha Plant,-0.1559,46.1,78
+Jigglypuff,-0.1591,46.0,79
+Corrin,-0.1619,46.0,80
+Lucina,-0.1721,45.7,81
+Mii Brawler,-0.175,45.6,82
+Ganondorf,-0.2031,44.9,83
+Lucario,-0.2199,44.5,84
+Marth,-0.2928,42.7,85
+Kirby,-0.4013,40.1,86

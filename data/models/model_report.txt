@@ -12,11 +12,21 @@ Character usage: 51,829 players with character data (18% of all players)
 Matchup model: 1,367,297 non-mirror games, 86 characters, 3,655 matchups
   validation: train 1,057,375 games before 2026-01-01, test 309,922 after
   ratings only:            log loss 0.5701  accuracy 0.694
-  ratings + characters (penalty 10/30): log loss 0.5686  accuracy 0.697
-  ratings + characters (penalty 10/100): log loss 0.5685  accuracy 0.697
-  ratings + characters (penalty 30/300): log loss 0.5687  accuracy 0.697
-  ratings + characters (penalty 100/1000): log loss 0.5690  accuracy 0.696
-  chosen penalty 10/100; characters improve log loss by 0.0016 over ratings alone
+  + characters (penalty 10/30): log loss 0.5686  accuracy 0.697
+  + characters (penalty 10/100): log loss 0.5685  accuracy 0.697
+  + characters (penalty 30/300): log loss 0.5687  accuracy 0.697
+  + characters (penalty 100/1000): log loss 0.5690  accuracy 0.696
+  + familiarity with the character: log loss 0.5662  accuracy 0.697
+  + player-on-character (penalty player 3 / character 10): log loss 0.5651  accuracy 0.698 as used by the dashboard  [0.5616 / 0.703 with the player-level part]
+  + player-on-character (penalty player 10 / character 3): log loss 0.5618  accuracy 0.702 as used by the dashboard  [0.5609 / 0.703 with the player-level part]
+  + player-on-character (penalty player 10 / character 10): log loss 0.5627  accuracy 0.700 as used by the dashboard  [0.5607 / 0.702 with the player-level part]
+  + player-on-character (penalty player 10 / character 30): log loss 0.5646  accuracy 0.698 as used by the dashboard  [0.5612 / 0.702 with the player-level part]
+  chosen: characters 10/100, familiarity, player-on-character penalty 10 (player-level 10); 43,377 player/character pairs with an adjustment
+  log-loss gain over ratings alone: characters 0.0016, + familiarity 0.0039, + player-on-character 0.0073
+  average size of the character part of the log-odds: 0.104 -> 0.279 (rating part 0.989 -> 1.002)
+  games where a player is off their usual character (107,971): accuracy 0.705 ratings only, 0.706 + characters, 0.710 + player-on-character
+Player-on-character table: 120,156 player/character pairs, 52,242 with their own adjustment
 
-Skill-adjusted character strength, top 5: Steve, Min Min, Kazuya, Luigi, Snake
-  bottom 5: Lucina, Dr. Mario, Ganondorf, Kirby, Marth
+
+Skill-adjusted character strength, top 5: Steve, Min Min, Snake, Kazuya, Olimar
+  bottom 5: Mii Brawler, Ganondorf, Lucario, Marth, Kirby

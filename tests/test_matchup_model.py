@@ -1,3 +1,5 @@
+# Contains Claude generated code
+
 """Matchup model in src/05_build_models.py: design matrix symmetry and parameter recovery."""
 import numpy as np
 import pandas as pd

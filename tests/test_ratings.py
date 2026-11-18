@@ -1,3 +1,5 @@
+# Contains Claude generated code
+
 """Glicko-2 implementation in src/05_build_models.py."""
 import numpy as np
 import pandas as pd

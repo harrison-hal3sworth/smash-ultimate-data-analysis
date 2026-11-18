@@ -1,6 +1,6 @@
 # Validation and robustness report
 
-Generated 2026-11-04 11:44 from `data/processed` and `data/models`. Held-out period: sets from 2026-01-01.
+Generated 2026-11-18 11:18 from `data/processed` and `data/models`. Held-out period: sets from 2026-01-01.
 
 | Check | Result | Value |
 | --- | --- | --- |
@@ -8,6 +8,7 @@ Generated 2026-11-04 11:44 from `data/processed` and `data/models`. Held-out per
 | Recalibrated probabilities calibrated (mean error < 0.02) | pass | 0.010 (k = 1.16) |
 | Results insensitive to Glicko tau (log-loss spread < 0.005) | pass | 0.00001 |
 | Characters improve held-out predictions (bootstrap CI above 0) | pass | 0.0016 [0.0014, 0.0019] |
+| Player-on-character term improves held-out predictions (bootstrap CI above 0) | pass | 0.0057 [0.0052, 0.0063] |
 | Character ranking reproducible across random halves (Spearman > 0.8) | pass | 0.89 |
 
 ## 1. Rating calibration
@@ -85,8 +86,13 @@ Fit on games before 2026-01-01, scored on 309,922 later games from 1,731 events.
 | --- | --- | --- |
 | ratings only | 0.5701 | 0.694 |
 | ratings + characters | 0.5685 | 0.697 |
+| ratings + characters + player-on-character | 0.5627 | 0.700 |
 
 Log-loss gain from characters: **0.0016** (95% CI 0.0014 to 0.0019). The gain is small but reliably above zero.
+
+Further gain from the player-on-character term (how familiar each player is with the character they picked, plus how much better or worse they do on it than on their other characters): **0.0057** (95% CI 0.0052 to 0.0063).
+
+Games where a player is on a character that makes up under half of their earlier games (107,971 games, 35% of the test set), accuracy: ratings only 0.705, + characters 0.706, + player-on-character 0.710.
 
 ## 5. Is the character-strength ranking stable?
 
@@ -96,6 +102,6 @@ The skill-adjusted character strengths (the data-driven tier list) refitted on d
 | --- | --- | --- |
 | random half A vs half B (by event) | 0.89 | 6 / 10 |
 | before 2025 vs 2025 onward | 0.71 | 5 / 10 |
-| penalty 10/100 vs 100/1000 | 1.00 | 10 / 10 |
+| penalty 10/100 vs 100/1000 | 0.91 | 8 / 10 |
 
 Full per-split strengths: `reports/tables/strengths_by_split.csv`.

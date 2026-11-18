@@ -1,3 +1,5 @@
+# Contains Claude generated code
+
 """
 09_validate_seeding.py  —  does the auto-seeder beat organizer seeding?
 
@@ -47,7 +49,8 @@ REPORT, FIG, TAB = ROOT / "reports", ROOT / "reports" / "figures", ROOT / "repor
 TEST_FROM = pd.Timestamp(B.TEST_FROM)
 NEWCOMER_SETS = 5          # fewer prior sets than this = newcomer
 N_RANDOM, N_BOOT, SEED = 20, 2000, 0
-METHODS = ["organizer", "ratings only", "ratings + characters", "random"]
+PC = "+ player-on-character"   # what the dashboard's auto-seeder uses
+METHODS = ["organizer", "ratings only", "ratings + characters", PC, "random"]
 
 
 def log(msg):
@@ -74,8 +77,9 @@ def pre_event_ratings(rated: pd.DataFrame) -> pd.DataFrame:
     return long.sort_values("date").groupby(["event_id", "player_id"]).first().reset_index()
 
 
-def train_models(games, rated, penalty) -> tuple[dict, dict]:
-    """Matchup model refitted on games before TEST_FROM, plus a ratings-only model."""
+def train_models(games, rated, penalty) -> tuple[dict, dict, dict]:
+    """Matchup model refitted on games before TEST_FROM, a ratings-only model, and the
+    model with the player-on-character term (plus its fitted adjustments)."""
     d = B.prep_games(games, rated)
     tr = d[d.date < TEST_FROM]
     chars = sorted(set(tr.c1) | set(tr.c2))
@@ -88,7 +92,28 @@ def train_models(games, rated, penalty) -> tuple[dict, dict]:
             "strength": dict(zip(chars, map(float, w[1:1 + nc]))),
             "interaction": {f"{a}|{b}": float(v) for (a, b), v in zip(pairs, w[1 + nc:])}}
     ratings_only = {"beta": float(w0[0]), "scale": B.SCALE, "characters": [], "strength": {}, "interaction": {}}
-    return full, ratings_only
+
+    f = B.fit_player_char(tr, chars, pairs, penalty["strength"], penalty["interaction"],
+                          penalty["player_char"], penalty["player"])
+    k = 1 + nc + len(pairs)
+    w2 = f["w"]
+    pc = {"beta": float(w2[0]), "scale": B.SCALE, "characters": chars,
+          "strength": dict(zip(chars, map(float, w2[1:1 + nc]))),
+          "interaction": {f"{a}|{b}": float(v) for (a, b), v in zip(pairs, w2[1 + nc:k])},
+          "experience_coef": f["gamma"], "adj": f["adj"].to_dict()}
+    return full, ratings_only, pc
+
+
+def offsets_before(pg: pd.DataFrame, mains: pd.Series, pc: dict) -> pd.Series:
+    """Player-on-character term for each player's pre-TEST_FROM main, from pre-TEST_FROM games."""
+    before = pg[pg.date < TEST_FROM]
+    n_p = before.groupby("player_id").size()
+    n_pc = before.groupby(["player_id", "char"]).size()
+    out = {}
+    for pid, c in mains.items():
+        e = B.experience_now(n_pc.get((pid, c), 0), n_p.get(pid, 0))
+        out[pid] = pc["experience_coef"] * e + pc["adj"].get((pid, c), 0.0)
+    return pd.Series(out, dtype=float)
 
 
 def mains_before(pg: pd.DataFrame) -> pd.Series:
@@ -104,7 +129,8 @@ def mains_before(pg: pd.DataFrame) -> pd.Series:
 
 # ── per event ──────────────────────────────────────────────────────────
 
-def seed_event(ev: pd.DataFrame, full: dict, ronly: dict, mains: pd.Series, rng) -> dict:
+def seed_event(ev: pd.DataFrame, full: dict, ronly: dict, mains: pd.Series, rng,
+               pc: dict | None = None, offsets: pd.Series | None = None) -> dict:
     """ev: one event's entrants with seed, placement, r, rd. Returns seeds per method."""
     ids = ev.player_id.to_numpy()
     seeds = {"organizer": seeder.seeds_from_order(np.argsort(ev.seed.to_numpy(), kind="stable"))}
@@ -113,6 +139,10 @@ def seed_event(ev: pd.DataFrame, full: dict, ronly: dict, mains: pd.Series, rng)
     chars = [mains.get(p) for p in ids]
     P1 = seeder.pairwise_set_probs(full, ev.r, ev.rd, chars)
     seeds["ratings + characters"] = seeder.seeds_from_order(seeder.seed_order(P1))
+    if pc is not None:
+        off = [offsets.get(p, 0.0) for p in ids]
+        P2 = seeder.pairwise_set_probs(pc, ev.r, ev.rd, chars, offsets=off)
+        seeds[PC] = seeder.seeds_from_order(seeder.seed_order(P2))
     seeds["random"] = [seeder.seeds_from_order(rng.permutation(len(ids))) for _ in range(N_RANDOM)]
     return seeds
 
@@ -130,7 +160,7 @@ def newcomer_split(seeds: dict, ev: pd.DataFrame, sets: pd.DataFrame) -> list[di
     new = set(ev.loc[ev.prior_sets < NEWCOMER_SETS, "player_id"])
     has_new = sets.p1_id.isin(new) | sets.p2_id.isin(new)
     rows = []
-    for m in ["organizer", "ratings only", "ratings + characters"]:
+    for m in ["organizer", "ratings only", "ratings + characters", PC]:
         seed_of = dict(zip(ev.player_id, seeds[m]))
         for label, mask in [("involves a newcomer", has_new), ("established players only", ~has_new)]:
             sub = sets[mask]
@@ -167,17 +197,18 @@ def main():
     penalty = json.loads((ROOT / "data" / "models" / "matchup_model.json").read_text())["penalty"]
 
     log(f"refitting the matchup model on games before {TEST_FROM:%Y-%m-%d} ...")
-    full, ronly = train_models(data["games"], rated, penalty)
+    full, ronly, pc = train_models(data["games"], rated, penalty)
     mains = mains_before(data["pg"])
+    offsets = offsets_before(data["pg"], mains, pc)
 
-    log(f"seeding {len(test_events)} events four ways ...")
+    log(f"seeding {len(test_events)} events five ways ...")
     per_event, newcomer_rows = [], []
     for event_id, ev in seeding.groupby("event_id"):
         ev = ev.merge(pre, on=["event_id", "player_id"], how="inner")    # entrants who played a set
         if len(ev) < 16:
             continue
         sets = rated[rated.event_id == event_id]
-        seeds = seed_event(ev, full, ronly, mains, rng)
+        seeds = seed_event(ev, full, ronly, mains, rng, pc, offsets)
         scores = score_event(seeds, ev, sets)
         info = data["sets"].loc[data["sets"].event_id == event_id, ["tournament_name", "date"]].iloc[0]
         for m, sc in scores.items():
@@ -207,7 +238,8 @@ def main():
 
     # paired comparisons: auto-seeder minus organizer, and characters minus ratings only
     wide = {k: res.pivot(index="event_id", columns="method", values=k) for k in ["spearman", "top8", "set_accuracy"]}
-    pairs = [("ratings + characters", "organizer"), ("ratings only", "organizer"), ("ratings + characters", "ratings only")]
+    pairs = [(PC, "organizer"), ("ratings + characters", "organizer"), ("ratings only", "organizer"),
+             ("ratings + characters", "ratings only"), (PC, "ratings + characters")]
     comp = []
     for a, b in pairs:
         row = {"comparison": f"{a} vs {b}"}
@@ -224,11 +256,11 @@ def main():
     nc = pd.DataFrame(newcomer_rows).groupby(["sets", "method"])[["n", "correct"]].sum()
     nc["accuracy"] = (nc.correct / nc.n).round(3)
     nc = nc.reset_index().pivot(index="sets", columns="method", values="accuracy")[
-        ["organizer", "ratings only", "ratings + characters"]]
+        ["organizer", "ratings only", "ratings + characters", PC]]
     nc.to_csv(TAB / "seeding_newcomers.csv")
 
     # figure: auto-seeder vs organizer, one dot per event
-    o, a = wide["spearman"]["organizer"], wide["spearman"]["ratings + characters"]
+    o, a = wide["spearman"]["organizer"], wide["spearman"][PC]
     fig, ax = plt.subplots(figsize=(5, 5))
     lim = [min(o.min(), a.min()) - 0.03, 1]
     ax.plot(lim, lim, ls=":", color="grey")

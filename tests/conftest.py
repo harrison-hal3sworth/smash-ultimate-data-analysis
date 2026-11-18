@@ -1,3 +1,5 @@
+# Contains Claude generated code
+
 """Shared test setup: make src/ importable and give tests access to the step-05 module."""
 from pathlib import Path
 import importlib.util

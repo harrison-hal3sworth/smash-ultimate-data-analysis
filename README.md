@@ -4,7 +4,7 @@ Do Super Smash Bros. Ultimate tier lists and matchup charts hold up against real
 
 This project pulls tournament data from the [start.gg](https://start.gg) API, rates every player, models character matchups after controlling for skill, and wraps the results in an interactive dashboard.
 
-**Data:** US offline singles events with 32+ entrants, January 2019 to October 2026. That's 26,238 events, 2.78M completed sets and 1.39M games with both characters reported.
+**Data:** US offline singles events with 32+ entrants, January 2019 to October 2026. That's 26,238 events, 2.78M completed sets and 1.39M games with both characters reported. The data is refreshed with `src/update.py` (see [Keeping the data up to date](#keeping-the-data-up-to-date)); each refresh is logged in `reports/update_history.csv`.
 
 ---
 
@@ -52,7 +52,8 @@ Paste a tournament's entrants, one start.gg tag per line, to get a seeding. Each
 
 - **Player ratings (Glicko-2):** every completed set, in date order, in weekly rating periods. Each prediction uses only ratings from before the match. Ratings pick the winner of **75.8%** of 2026 sets.
 - **Matchup model:** a logistic regression on 1.37M games. It combines the players' rating gap, each character's overall strength, and a matchup-specific adjustment. Rarely played matchups are pulled toward the two characters' overall strengths.
-- **Main finding so far:** skill explains most outcomes. Characters improve per-game accuracy only from 69.4% to 69.7%, a small but statistically reliable gain.
+- **Player-on-character term:** how familiar each player is with the character they picked (the share of their earlier games on it), plus how much better or worse they do on that character than on their other characters. Picking a character a player rarely uses lowers their chance, and the dashboard says so. A separate player-level adjustment is fitted alongside, so these terms only describe differences *between a player's characters*; the dashboard leaves the player-level part out, so player strength is still the rating behind the rank.
+- **Main finding so far:** skill explains most outcomes. On 2026 games, characters alone improve per-game accuracy from 69.4% to 69.7%; adding the player-on-character term raises it to 70.0% and cuts log loss by 4.6 times as much as the matchups alone did (0.0073 vs 0.0016). Both gains are statistically reliable.
 
 Full results: [`reports/validation.md`](reports/validation.md) and [`data/models/model_report.txt`](data/models/model_report.txt).
 
@@ -76,11 +77,14 @@ src/
   seeder.py               auto-seeding + seeding evaluation metrics
   08_pull_seeding.py      organizer seeds + final placements for test events
   09_validate_seeding.py  auto-seeder vs organizer seeding report
+  update.py               one-command data refresh (see below)
   app.py                  Streamlit dashboard
+scripts/update_weekly.bat runs update.py from Windows Task Scheduler
 EDA/cleaning.ipynb        exploratory analysis (figures in outputs/figures/)
 tests/                    pytest suite
 data/models/              fitted models used by the app (committed)
-reports/                  validation report, figures and tables
+reports/                  validation reports, update history, figures and tables
+logs/                     update logs (not committed)
 ```
 
 `data/raw/`, `data/interim/` and `data/processed/` aren't in the repo, because they're large and can be regenerated with the steps below.
@@ -105,16 +109,52 @@ python src/09_validate_seeding.py   # auto-seeder validation -> reports/seeding_
 
 Steps 01 and 03 can be stopped and restarted at any time, and they pick up where they left off. start.gg rate-limits each token, so run only one pull at a time.
 
+After this first build, you don't need to run these steps by hand: `src/update.py` (below) runs 01–05 for whatever is new.
+
+---
+
+## Keeping the data up to date
+
+One command refreshes everything: it pulls tournaments and sets added since the last run, rebuilds the tables and models, and checks the result.
+
+```bash
+python src/update.py --dry-run   # show what would be refreshed; changes nothing
+python src/update.py             # full update, about 20-40 minutes for a week of new events
+python src/update.py --commit    # ... then commit + push data/models so others can `git pull`
+```
+
+Each run:
+
+1. Re-pulls the tournament list for every month since the data was last brought up to date (the last successful update, or the last set pull before the first update), so a gap of weeks or months is filled in one run. It always covers at least the current and previous month, because organizers add and edit events late. To force a wider window, use `--since YYYY-MM`.
+2. Pulls sets for every finished event that has no set data yet, whatever its date, and re-pulls events since the last update that were fetched while still in progress or came back empty.
+3. Rebuilds `data/processed` and `data/models` (steps 04 and 05) from all of the data, so every rating, matchup and ranking reflects the new results.
+4. Runs the data checks (`pytest -m data`). If the model build or a check fails, the previous models are restored, so the dashboard never shows a broken build.
+5. Logs a before/after summary (new events, new games, top-10 changes) to `logs/` and adds a row to `reports/update_history.csv`.
+
+Other options: `--skip-pull` rebuilds from data already on disk without calling the API, and `--validate` also re-runs the validation report. Only one update can run at a time; a crashed run's lock (`data/.update.lock`) is ignored after 12 hours.
+
+**To get the latest data on another computer**, run `git pull` and restart the dashboard.
+
+### Run it weekly (Windows)
+
+`scripts/update_weekly.bat` runs `update.py --commit` with the project's virtual environment. To schedule it for 3 a.m. every Monday, open a terminal in the project folder and run:
+
+```bat
+schtasks /create /tn "Smash data update" /tr "\"%cd%\scripts\update_weekly.bat\"" /sc weekly /d MON /st 03:00
+```
+
+The computer must be on and awake at that time. To run it now as a test: `schtasks /run /tn "Smash data update"`. Output goes to `logs/scheduler.log`. For `--commit` to push, Git on that computer must already be signed in to GitHub.
+
 ---
 
 ## Tests
 
 ```bash
-pytest -m "not data"   # 64 unit tests on small made-up data; no data needed, a few seconds
+pytest -m "not data"   # 93 unit tests on small made-up data; no data needed, a few seconds
 pytest -m data         # 10 checks on the real pipeline outputs (needs data/processed and data/models)
 ```
 
-The unit tests cover the cleaning rules, the Glicko-2 implementation (checked against Glickman's published worked example), leakage, the matchup model, the auto-seeder and every dashboard case.
+The unit tests cover the cleaning rules, the Glicko-2 implementation (checked against Glickman's published worked example), leakage, the matchup model, the auto-seeder, every dashboard case, the player-on-character term (no leakage from future games, player vs character effects kept apart) and the update workflow (which months to re-pull, catching up after a long gap, which events count as incomplete).
 
 ---
 

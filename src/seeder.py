@@ -1,3 +1,5 @@
+# Contains Claude generated code
+
 """
 seeder.py  —  auto-seeding (PM deliverable 6).
 
@@ -41,10 +43,12 @@ def set_prob_array(p: np.ndarray, best_of: int = 3) -> np.ndarray:
     return sum(math.comb(need - 1 + k, k) * p ** need * q ** k for k in range(need))
 
 
-def pairwise_set_probs(model: dict, ratings, rds, chars=None, best_of: int = 3) -> np.ndarray:
+def pairwise_set_probs(model: dict, ratings, rds, chars=None, best_of: int = 3, offsets=None) -> np.ndarray:
     """P[i, j] = chance player i beats player j in a best-of-N set.
     ratings / rds: arrays on the 1500 / 350 scale. chars: list of character names or None
-    (None, or an unknown name, means 'no character effect' for that player)."""
+    (None, or an unknown name, means 'no character effect' for that player).
+    offsets: optional per-player log-odds terms (the player-on-character term for the
+    character each player is assumed to use); 0 = no adjustment."""
     r, d = np.asarray(ratings, float), np.asarray(rds, float)
     S, beta = model["scale"], model["beta"]
     g = 1 / np.sqrt(1 + 3 * ((d[:, None] ** 2 + d[None, :] ** 2) / S ** 2) / np.pi ** 2)
@@ -56,6 +60,9 @@ def pairwise_set_probs(model: dict, ratings, rds, chars=None, best_of: int = 3) 
         both = known[:, None] & known[None, :]
         cc = np.where(known, ci, 0)
         z = z + np.where(both, M[cc[:, None], cc[None, :]], 0.0)
+    if offsets is not None:
+        o = np.nan_to_num(np.asarray(offsets, float))
+        z = z + o[:, None] - o[None, :]
     P = set_prob_array(1 / (1 + np.exp(-z)), best_of)
     np.fill_diagonal(P, np.nan)
     return P

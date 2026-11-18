@@ -1,4 +1,6 @@
 comparison,Spearman difference,top-8 difference,set-accuracy difference
-ratings + characters vs organizer,"-0.083 [-0.141, -0.033]; better in 6, worse in 43","-0.102 [-0.367, +0.163]; better in 9, worse in 11","-0.022 [-0.042, -0.003]; better in 18, worse in 30"
-ratings only vs organizer,"-0.082 [-0.139, -0.033]; better in 8, worse in 41","-0.143 [-0.429, +0.143]; better in 8, worse in 11","-0.021 [-0.042, -0.003]; better in 18, worse in 30"
-ratings + characters vs ratings only,"-0.001 [-0.001, +0.000]; better in 20, worse in 27","+0.041 [-0.041, +0.143]; better in 4, worse in 2","-0.001 [-0.002, +0.001]; better in 16, worse in 19"
++ player-on-character vs organizer,"-0.078 [-0.136, -0.029]; better in 7, worse in 42","-0.143 [-0.469, +0.204]; better in 11, worse in 13","-0.020 [-0.042, -0.000]; better in 18, worse in 27"
+ratings + characters vs organizer,"-0.083 [-0.144, -0.034]; better in 6, worse in 43","-0.102 [-0.367, +0.143]; better in 9, worse in 11","-0.021 [-0.043, -0.003]; better in 18, worse in 30"
+ratings only vs organizer,"-0.082 [-0.142, -0.034]; better in 8, worse in 41","-0.143 [-0.469, +0.143]; better in 8, worse in 11","-0.021 [-0.041, -0.003]; better in 18, worse in 30"
+ratings + characters vs ratings only,"-0.001 [-0.001, +0.000]; better in 20, worse in 27","+0.041 [-0.061, +0.143]; better in 4, worse in 2","-0.000 [-0.002, +0.001]; better in 17, worse in 17"
++ player-on-character vs ratings + characters,"+0.004 [+0.002, +0.008]; better in 32, worse in 15","-0.041 [-0.245, +0.163]; better in 9, worse in 12","+0.001 [-0.002, +0.004]; better in 22, worse in 19"

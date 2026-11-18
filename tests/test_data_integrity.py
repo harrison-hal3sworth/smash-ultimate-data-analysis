@@ -1,3 +1,5 @@
+# Contains Claude generated code
+
 """Checks on the REAL pipeline outputs. Skipped automatically when the data isn't present.
 
     pytest -m data          # only these

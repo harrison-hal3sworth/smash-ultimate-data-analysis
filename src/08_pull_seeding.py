@@ -1,3 +1,5 @@
+# Contains Claude generated code
+
 """
 08_pull_seeding.py  —  organizer seeds + final placements for the auto-seeder test events.
 

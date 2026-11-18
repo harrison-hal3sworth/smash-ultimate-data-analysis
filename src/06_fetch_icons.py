@@ -1,3 +1,5 @@
+# Contains Claude generated code
+
 """
 06_fetch_icons.py  —  character icon URLs from start.gg, for the dashboard.
 

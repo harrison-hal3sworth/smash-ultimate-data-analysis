@@ -21,8 +21,9 @@ OUT_DIR = ROOT / "data" / "raw" / "tournaments"
 PER_PAGE = 50
 
 
-def month_windows(start_year=2019, end_year=2026):
+def month_windows(start_year=2019, end_year=None):
     now = datetime.now(timezone.utc)
+    end_year = end_year or now.year          # up to the current month, whatever the year
     for y in range(start_year, end_year + 1):
         for m in range(1, 13):
             a = datetime(y, m, 1, tzinfo=timezone.utc)

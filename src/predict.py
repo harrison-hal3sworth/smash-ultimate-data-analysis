@@ -1,3 +1,5 @@
+# Contains Claude generated code
+
 """
 predict.py  —  answers the dashboard's questions from the step-05 model files.
 
@@ -8,7 +10,7 @@ predict.py  —  answers the dashboard's questions from the step-05 model files.
     m.predict(a=..., b=..., char_a="Cloud", char_b="Steve")   # win % (4, 5a, 5b)
 
 Every case in the PM's spec goes through predict():
-    players + characters  -> rating gap + matchup effect
+    players + characters  -> rating gap + matchup effect + each player's skill on their character
     characters only       -> matchup effect alone (equal-skill players)
     players only          -> higher-ranked player favoured, probability from ratings
 """
@@ -53,9 +55,20 @@ class SmashModel:
         self.players["tag"] = self.players["tag"].astype(str)
         self.players["other_tags"] = self.players["other_tags"].fillna("").astype(str)
         self.usage_tbl = pd.read_csv(d / "usage.csv")
+        # player-on-character table (games per player and character + fitted adjustment);
+        # older model folders without it simply skip the player-on-character term
+        pc_path = d / "player_char.csv"
+        if pc_path.exists():
+            pc = pd.read_csv(pc_path)
+            self.pc_games = pc.set_index(["player_id", "char"]).games.to_dict()
+            self.pc_adj = pc[pc.adj != 0].set_index(["player_id", "char"]).adj.to_dict()
+            self.player_games = pc.groupby("player_id").games.sum().to_dict()
+        else:
+            self.pc_games, self.pc_adj, self.player_games = {}, {}, {}
         self.model = json.loads((d / "matchup_model.json").read_text(encoding="utf-8"))
         self.characters = self.model["characters"]
         self.beta, self.scale = self.model["beta"], self.model["scale"]
+        self.gamma = self.model.get("experience_coef", 0.0)
         self._tag_lower = self.players.tag.str.lower()
         self._other_lower = self.players.other_tags.str.lower()
 
@@ -116,6 +129,17 @@ class SmashModel:
         i = inter.get(f"{lo}|{hi}", 0.0)
         return s[a] - s[b] + (i if a == lo else -i)
 
+    def player_char_logit(self, pid: int | None, char: str | None) -> float:
+        """Player-on-character term: familiarity with the character (share of the player's
+        games on it) plus the player's fitted over/under-performance on it. 0 for unknown players."""
+        if pid is None or char is None:
+            return 0.0
+        n_p = self.player_games.get(pid, 0)
+        if n_p == 0:                     # no character history: neutral, as in training
+            return 0.0
+        n_pc = self.pc_games.get((pid, char), 0)
+        return self.gamma * math.log((1 + n_pc) / (1 + n_p)) + self.pc_adj.get((pid, char), 0.0)
+
     def matchup_games(self, a: str, b: str) -> int:
         lo, hi = sorted((a, b))
         return self.model["games"].get(f"{lo}|{hi}", 0)
@@ -138,6 +162,14 @@ class SmashModel:
         z, notes = 0.0, []
         if players:
             z += self.beta * self.rating_gap(a, b)
+        if players and chars:
+            for pid, c in ((a, char_a), (b, char_b)):
+                z += (1 if pid == a else -1) * self.player_char_logit(pid, c)
+                n_p = self.player_games.get(pid, 0)
+                n_pc = self.pc_games.get((pid, c), 0)
+                if n_p >= 20 and n_pc / n_p < 0.1:
+                    notes.append(f"{self.players.at[pid, 'tag']} has played {c} in {n_pc} of {n_p} reported games; "
+                                 "an unfamiliar character lowers their chance.")
         if chars:
             if char_a == char_b:
                 notes.append("Mirror match: the characters cancel out.")
@@ -176,8 +208,9 @@ class SmashModel:
         names = names or [None] * len(player_ids)
         ratings = [self.rating(p) if p is not None else (R0, RD0) for p in player_ids]
         chars = [self.main_char(p) if (p is not None and use_chars) else None for p in player_ids]
+        offsets = [self.player_char_logit(p, c) for p, c in zip(player_ids, chars)] if use_chars else None
         P = seeder.pairwise_set_probs(self.model, [r for r, _ in ratings], [d for _, d in ratings],
-                                      chars if use_chars else None, best_of)
+                                      chars if use_chars else None, best_of, offsets)
         share = seeder.expected_win_share(P)
         rows = []
         for i, pid in enumerate(player_ids):

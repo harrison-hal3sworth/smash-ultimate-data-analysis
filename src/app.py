@@ -1,3 +1,5 @@
+# Contains Claude generated code
+
 """
 app.py  —  Smash Ultimate matchup dashboard (PM deliverables 1-6).
 

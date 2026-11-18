@@ -1,3 +1,5 @@
+# Contains Claude generated code
+
 """Auto-seeder (src/seeder.py and SmashModel.seed)."""
 import numpy as np
 import pandas as pd

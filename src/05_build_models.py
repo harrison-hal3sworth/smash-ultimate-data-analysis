@@ -1,3 +1,5 @@
+# Contains Claude generated code
+
 """
 05_build_models.py  —  player table, Glicko-2 ratings, character usage, matchup model.
 
@@ -8,7 +10,9 @@ the dashboard and the auto-seeder need to data/models/:
     ratings_current.csv  latest Glicko-2 rating / RD per player + rank among active players
     sets_rated.csv.gz    every completed set with BOTH players' ratings *before* that week
     usage.csv            character usage per player (last 12 months, else all time)
-    matchup_model.json   fitted model: rating coefficient, character strength, matchup terms
+    matchup_model.json   fitted model: rating coefficient, character strength, matchup terms,
+                         familiarity coefficient
+    player_char.csv      per player and character: all-time games + player-on-character adjustment
     char_strength.csv    characters ranked by skill-adjusted strength (data-driven tier list)
     matchup_matrix.csv   P(row character beats column character), equal-skill players, per game
     model_report.txt     validation numbers (train before 2026, test on 2026)
@@ -252,7 +256,11 @@ def design(games: pd.DataFrame, chars: list, pairs: list):
 def fit_logistic(X, y, nc, lam_s, lam_i):
     """Ridge-penalised logistic regression (no intercept: the model is symmetric)."""
     pen = np.r_[0.0, np.full(nc, lam_s), np.full(X.shape[1] - 1 - nc, lam_i)]
+    return fit_penalised(X, y, pen)
 
+
+def fit_penalised(X, y, pen):
+    """Logistic regression with a separate ridge penalty per column."""
     def fg(w):
         z = X @ w
         p = 1 / (1 + np.exp(-z))
@@ -265,7 +273,35 @@ def fit_logistic(X, y, nc, lam_s, lam_i):
     return res.x
 
 
+def char_experience(games: pd.DataFrame) -> pd.DataFrame:
+    """Each player's familiarity with the character they used in each game, from games played
+    on EARLIER dates only (no leakage): log((1 + games on this character) / (1 + all games)).
+    0 = this is all they have played (or no history yet); very negative = a rare pick."""
+    long = pd.concat([
+        games[["date", "p1_id", "p1_char"]].set_axis(["date", "player_id", "char"], axis=1),
+        games[["date", "p2_id", "p2_char"]].set_axis(["date", "player_id", "char"], axis=1)])
+    long = long.dropna()
+    pc = long.groupby(["player_id", "char", "date"]).size().rename("n").reset_index().sort_values("date")
+    pc["prior_pc"] = pc.groupby(["player_id", "char"]).n.cumsum() - pc.n
+    pp = long.groupby(["player_id", "date"]).size().rename("n").reset_index().sort_values("date")
+    pp["prior_p"] = pp.groupby("player_id").n.cumsum() - pp.n
+    out = games[["date", "p1_id", "p1_char", "p2_id", "p2_char"]].copy()
+    for s in ("p1", "p2"):
+        m = (out[["date", f"{s}_id", f"{s}_char"]].set_axis(["date", "player_id", "char"], axis=1)
+             .merge(pc[["player_id", "char", "date", "prior_pc"]], on=["player_id", "char", "date"], how="left")
+             .merge(pp[["player_id", "date", "prior_p"]], on=["player_id", "date"], how="left"))
+        out[f"{s}_exp"] = np.log((1 + m.prior_pc.fillna(0).to_numpy()) / (1 + m.prior_p.fillna(0).to_numpy()))
+    return out[["p1_exp", "p2_exp"]].set_index(games.index)
+
+
+def experience_now(n_pc: float, n_p: float) -> float:
+    """Same familiarity measure at prediction time, from all games so far."""
+    return float(np.log((1 + n_pc) / (1 + n_p)))
+
+
 def prep_games(games: pd.DataFrame, rated: pd.DataFrame, seed: int = 0) -> pd.DataFrame:
+    if "p1_exp" not in games:
+        games = games.join(char_experience(games))
     g = games[~games.is_mirror].merge(
         rated[["set_id", "p1_id", "p1_r", "p1_rd", "p2_r", "p2_rd"]].rename(columns={"p1_id": "rated_p1"}), on="set_id")
     g = g[g.rated_p1 == g.p1_id]                       # orientation check
@@ -278,49 +314,176 @@ def prep_games(games: pd.DataFrame, rated: pd.DataFrame, seed: int = 0) -> pd.Da
         "c2": np.where(flip, g.p1_char, g.p2_char),
         "rdiff": np.where(flip, -1, 1) * rating_gap(g.p1_r, g.p1_rd, g.p2_r, g.p2_rd).to_numpy(),
         "y": np.where(flip, g.winner_id == g.p2_id, g.winner_id == g.p1_id).astype(float),
+        "pa": np.where(flip, g.p2_id, g.p1_id).astype("int64"),
+        "pb": np.where(flip, g.p1_id, g.p2_id).astype("int64"),
+        "ea": np.where(flip, g.p2_exp, g.p1_exp),
+        "eb": np.where(flip, g.p1_exp, g.p2_exp),
     })
     return out
 
 
-def fit_matchups(games: pd.DataFrame, rated: pd.DataFrame, report: list) -> dict:
+# player-on-character terms: [familiarity difference | one adjustment per (player, character)]
+MIN_PC_GAMES = 5          # a (player, character) pair needs this many games to get its own adjustment
+
+
+def pc_index(d: pd.DataFrame, min_games: int = MIN_PC_GAMES) -> dict:
+    """(player_id, character) pairs with enough games in d to get their own adjustment."""
+    both = pd.concat([d[["pa", "c1"]].set_axis(["p", "c"], axis=1), d[["pb", "c2"]].set_axis(["p", "c"], axis=1)])
+    n = both.value_counts()
+    keep = sorted(n[n >= min_games].index)
+    return {k: i for i, k in enumerate(keep)}
+
+
+def player_index(d: pd.DataFrame, min_games: int = MIN_PC_GAMES) -> dict:
+    """Players with enough games in d to get a player-level adjustment."""
+    n = pd.concat([d.pa, d.pb]).value_counts()
+    return {p: i for i, p in enumerate(sorted(n[n >= min_games].index))}
+
+
+def _signed_cols(ka, kb, n_cols):
+    """Sparse +1 (side A) / -1 (side B) indicator columns from float index arrays (NaN = none)."""
+    n = len(ka)
+    rows = np.arange(n)
+    ma, mb = ~np.isnan(ka), ~np.isnan(kb)
+    return sparse.csr_matrix((np.r_[np.ones(ma.sum()), -np.ones(mb.sum())],
+                              (np.r_[rows[ma], rows[mb]], np.r_[ka[ma], kb[mb]].astype(int))), shape=(n, n_cols))
+
+
+def design_pc(d: pd.DataFrame, chars: list, pairs: list, pci: dict, with_u: bool = True, pidx: dict | None = None):
+    """design() plus [familiarity difference | player-on-character columns | player columns]."""
+    X = design(d, chars, pairs)
+    blocks = [X, sparse.csr_matrix((d.ea - d.eb).to_numpy()[:, None])]
+    if with_u:
+        ka = pd.Series(list(zip(d.pa, d.c1))).map(pci).to_numpy(dtype=float)
+        kb = pd.Series(list(zip(d.pb, d.c2))).map(pci).to_numpy(dtype=float)
+        blocks.append(_signed_cols(ka, kb, len(pci)))
+    if pidx:
+        blocks.append(_signed_cols(d.pa.map(pidx).to_numpy(dtype=float), d.pb.map(pidx).to_numpy(dtype=float), len(pidx)))
+    return sparse.hstack(blocks).tocsr()
+
+
+def pc_penalty(nc: int, n_pairs: int, n_u: int, lam_s, lam_i, lam_u, n_p: int = 0, lam_p=0):
+    return np.r_[0.0, np.full(nc, lam_s), np.full(n_pairs, lam_i), 0.0, np.full(n_u, lam_u), np.full(n_p, lam_p)]
+
+
+def fit_player_char(d: pd.DataFrame, chars: list, pairs: list, lam_s, lam_i, lam_u, lam_p) -> dict:
+    """Ratings + characters + familiarity + player-on-character adjustments, with a separate
+    player-level adjustment so the character adjustments only describe differences WITHIN a
+    player (better on Cloud than on their other characters). The player-level part soaks up
+    "this player beats their rating" and is NOT used by the dashboard (player strength there
+    stays the Glicko-2 rating, so rank and favourite always agree)."""
+    pci, pidx = pc_index(d), player_index(d)
+    X = design_pc(d, chars, pairs, pci, pidx=pidx)
+    w = fit_penalised(X, d.y.to_numpy(), pc_penalty(len(chars), len(pairs), len(pci), lam_s, lam_i, lam_u, len(pidx), lam_p))
+    k = 1 + len(chars) + len(pairs)
+    return {"w": w, "pci": pci, "pidx": pidx, "gamma": float(w[k]),
+            "adj": pd.Series(w[k + 1:k + 1 + len(pci)], name="adj",
+                             index=pd.MultiIndex.from_tuples(list(pci), names=["player_id", "char"]))}
+
+
+def logit_pc(d: pd.DataFrame, chars: list, pairs: list, fit: dict, as_used: bool = True) -> np.ndarray:
+    """Log-odds from a fit_player_char() fit. as_used=True leaves out the player-level part,
+    exactly as the dashboard and the auto-seeder do."""
+    X = design_pc(d, chars, pairs, fit["pci"], pidx=fit["pidx"])
+    w = fit["w"].copy()
+    if as_used and fit["pidx"]:
+        w[-len(fit["pidx"]):] = 0
+    return X @ w
+
+
+def fit_matchups(games: pd.DataFrame, rated: pd.DataFrame, report: list) -> tuple[dict, pd.Series]:
+    """Fit the matchup model. Returns (model dict, player-on-character adjustments)."""
     d = prep_games(games, rated)
     chars = sorted(set(d.c1) | set(d.c2))
     pairs = sorted({tuple(sorted(p)) for p in zip(d.c1, d.c2)})
-    nc = len(chars)
+    nc, npairs = len(chars), len(pairs)
 
     # choose penalties on a time split: fit before TEST_FROM, score on/after
     tr, te = d[d.date < pd.Timestamp(TEST_FROM)], d[d.date >= pd.Timestamp(TEST_FROM)]
+    y_tr, y_te = tr.y.to_numpy(), te.y.to_numpy()
     X_tr, X_te = design(tr, chars, pairs), design(te, chars, pairs)
-    best = None
-    report.append(f"Matchup model: {len(d):,} non-mirror games, {nc} characters, {len(pairs):,} matchups")
+    sig = lambda z: 1 / (1 + np.exp(-z))
+    report.append(f"Matchup model: {len(d):,} non-mirror games, {nc} characters, {npairs:,} matchups")
     report.append(f"  validation: train {len(tr):,} games before {TEST_FROM}, test {len(te):,} after")
-    base = fit_logistic(X_tr[:, :1], tr.y.to_numpy(), 0, 0, 0)
-    sc0 = scores(te.y.to_numpy(), 1 / (1 + np.exp(-(X_te[:, :1] @ base))))
+    base = fit_logistic(X_tr[:, :1], y_tr, 0, 0, 0)
+    sc0 = scores(y_te, sig(X_te[:, :1] @ base))
     report.append(f"  ratings only:            log loss {sc0['log_loss']:.4f}  accuracy {sc0['accuracy']:.3f}")
+
+    # (a) character matchups
+    best = None
     for lam_s, lam_i in [(10, 30), (10, 100), (30, 300), (100, 1000)]:
-        w = fit_logistic(X_tr, tr.y.to_numpy(), nc, lam_s, lam_i)
-        sc = scores(te.y.to_numpy(), 1 / (1 + np.exp(-(X_te @ w))))
-        report.append(f"  ratings + characters (penalty {lam_s}/{lam_i}): log loss {sc['log_loss']:.4f}  accuracy {sc['accuracy']:.3f}")
+        w = fit_logistic(X_tr, y_tr, nc, lam_s, lam_i)
+        sc = scores(y_te, sig(X_te @ w))
+        report.append(f"  + characters (penalty {lam_s}/{lam_i}): log loss {sc['log_loss']:.4f}  accuracy {sc['accuracy']:.3f}")
         if best is None or sc["log_loss"] < best[0]["log_loss"]:
-            best = (sc, lam_s, lam_i)
-    sc, lam_s, lam_i = best
-    report.append(f"  chosen penalty {lam_s}/{lam_i}; characters improve log loss by "
-                  f"{sc0['log_loss'] - sc['log_loss']:.4f} over ratings alone")
+            best = (sc, lam_s, lam_i, w)
+    sc1, lam_s, lam_i, w1 = best
+
+    # (b) + familiarity with the character picked
+    Xe_tr, Xe_te = design_pc(tr, chars, pairs, {}, with_u=False), design_pc(te, chars, pairs, {}, with_u=False)
+    we = fit_penalised(Xe_tr, y_tr, pc_penalty(nc, npairs, 0, lam_s, lam_i, 0))
+    sc2 = scores(y_te, sig(Xe_te @ we))
+    report.append(f"  + familiarity with the character: log loss {sc2['log_loss']:.4f}  accuracy {sc2['accuracy']:.3f}")
+
+    # (c) + player-on-character adjustments (with a player-level term that the dashboard leaves out)
+    best_u = None
+    for lam_p, lam_u in [(3, 10), (10, 3), (10, 10), (10, 30)]:
+        f = fit_player_char(tr, chars, pairs, lam_s, lam_i, lam_u, lam_p)
+        sc_full = scores(y_te, sig(logit_pc(te, chars, pairs, f, as_used=False)))
+        sc_used = scores(y_te, sig(logit_pc(te, chars, pairs, f, as_used=True)))
+        report.append(f"  + player-on-character (penalty player {lam_p} / character {lam_u}): "
+                      f"log loss {sc_used['log_loss']:.4f}  accuracy {sc_used['accuracy']:.3f} as used by the dashboard"
+                      f"  [{sc_full['log_loss']:.4f} / {sc_full['accuracy']:.3f} with the player-level part]")
+        if best_u is None or sc_full["log_loss"] < best_u[0]["log_loss"]:
+            best_u = (sc_full, sc_used, lam_p, lam_u, f)
+    sc_full, sc3, lam_p, lam_u, f_tr = best_u
+    report.append(f"  chosen: characters {lam_s}/{lam_i}, familiarity, player-on-character penalty "
+                  f"{lam_u} (player-level {lam_p}); {len(f_tr['pci']):,} player/character pairs with an adjustment")
+    report.append(f"  log-loss gain over ratings alone: characters {sc0['log_loss'] - sc1['log_loss']:.4f}, "
+                  f"+ familiarity {sc0['log_loss'] - sc2['log_loss']:.4f}, "
+                  f"+ player-on-character {sc0['log_loss'] - sc3['log_loss']:.4f}")
+
+    # how much of each prediction comes from characters (held-out games)
+    z_new = logit_pc(te, chars, pairs, f_tr, as_used=True)
+    r_old, c_old = np.abs(X_te[:, :1] @ w1[:1]).mean(), np.abs(X_te[:, 1:] @ w1[1:]).mean()
+    r_new = np.abs(X_te[:, :1] @ f_tr["w"][:1]).mean()
+    c_new = np.abs(z_new - X_te[:, :1] @ f_tr["w"][:1]).mean()
+    weight = {"before": {"rating": float(r_old), "character": float(c_old)},
+              "after": {"rating": float(r_new), "character": float(c_new)}}
+    report.append(f"  average size of the character part of the log-odds: {c_old:.3f} -> {c_new:.3f} "
+                  f"(rating part {r_old:.3f} -> {r_new:.3f})")
+
+    # where the new term should matter: someone is on a character that is under half their games
+    off = (np.minimum(te.ea, te.eb) < np.log(0.5)).to_numpy()
+    sub = {
+        "n": int(off.sum()),
+        "ratings_only": scores(y_te[off], sig(X_te[off][:, :1] @ base)),
+        "characters": scores(y_te[off], sig(X_te[off] @ w1)),
+        "player_on_character": scores(y_te[off], sig(z_new[off])),
+    }
+    report.append(f"  games where a player is off their usual character ({sub['n']:,}): accuracy "
+                  f"{sub['ratings_only']['accuracy']:.3f} ratings only, {sub['characters']['accuracy']:.3f} + characters, "
+                  f"{sub['player_on_character']['accuracy']:.3f} + player-on-character")
 
     # refit on everything for the dashboard
-    w = fit_logistic(design(d, chars, pairs), d.y.to_numpy(), nc, lam_s, lam_i)
-    beta, s_eff, i_eff = w[0], w[1:1 + nc], w[1 + nc:]
+    f = fit_player_char(d, chars, pairs, lam_s, lam_i, lam_u, lam_p)
+    w = f["w"]
+    beta, s_eff, i_eff = w[0], w[1:1 + nc], w[1 + nc:1 + nc + npairs]
     n_games = pd.Series(list(zip(np.minimum(d.c1, d.c2), np.maximum(d.c1, d.c2)))).value_counts()
-    return {
+    model = {
         "beta": float(beta),                 # multiplies rating_gap() (Glicko-2 units, RD-discounted)
         "scale": SCALE,
-        "penalty": {"strength": lam_s, "interaction": lam_i},
-        "validation": {"ratings_only": sc0, "ratings_plus_characters": sc, "test_from": TEST_FROM},
+        "experience_coef": f["gamma"],       # multiplies (familiarity A - familiarity B), see experience_now()
+        "penalty": {"strength": lam_s, "interaction": lam_i, "player_char": lam_u, "player": lam_p},
+        "validation": {"ratings_only": sc0, "ratings_plus_characters": sc1, "plus_familiarity": sc2,
+                       "plus_player_on_character": sc3, "with_player_level_part": sc_full,
+                       "off_usual_character": sub, "logit_parts": weight, "test_from": TEST_FROM},
         "characters": chars,
         "strength": dict(zip(chars, map(float, s_eff))),
         "interaction": {f"{a}|{b}": float(v) for (a, b), v in zip(pairs, i_eff)},
         "games": {f"{a}|{b}": int(n_games.get((a, b), 0)) for (a, b) in pairs},
     }
+    return model, f["adj"]
 
 
 def matchup_logit(model, a, b):
@@ -380,8 +543,19 @@ def main():
                   f"({usage.player_id.nunique() / len(players):.0%} of all players)\n")
 
     log("matchup model (this is the slow part) ...")
-    model = fit_matchups(games, rated, report)
+    model, adj = fit_matchups(games, rated, report)
     (OUT / "matchup_model.json").write_text(json.dumps(model, indent=1), encoding="utf-8")
+
+    # per player and character: all-time games (familiarity) + fitted adjustment, for the dashboard
+    long = pd.concat([games[["p1_id", "p1_char"]].set_axis(["player_id", "char"], axis=1),
+                      games[["p2_id", "p2_char"]].set_axis(["player_id", "char"], axis=1)]).dropna()
+    pc = long.value_counts().rename("games").to_frame()
+    pc.index = pc.index.set_levels(pc.index.levels[0].astype("int64"), level=0)
+    pc = pc.join(adj, how="left").fillna({"adj": 0.0})
+    pc["adj"] = pc.adj.round(5)
+    pc.sort_index().to_csv(OUT / "player_char.csv")
+    report.append(f"Player-on-character table: {len(pc):,} player/character pairs, "
+                  f"{int((pc.adj != 0).sum()):,} with their own adjustment\n")
 
     chars = model["characters"]
     strength = pd.Series(model["strength"]).sort_values(ascending=False)
